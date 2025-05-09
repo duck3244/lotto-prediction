@@ -8,7 +8,9 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+
 from sklearn.preprocessing import MinMaxScaler
+
 
 def load_data(file_path):
     """엑셀 파일에서 로또 데이터 불러오기"""
@@ -19,6 +21,7 @@ def load_data(file_path):
         return df
     except Exception as e:
         raise FileNotFoundError(f"데이터 파일을 불러올 수 없습니다: {e}")
+
 
 def preprocess_data(df, sequence_length=5, use_tf_dataset=True):
     """
@@ -59,6 +62,7 @@ def preprocess_data(df, sequence_length=5, use_tf_dataset=True):
 
     return X_array, y_array, scaler
 
+
 def create_optimized_dataset(X, y, batch_size=64, shuffle_buffer=1000):
     """
     RTX 4060에 최적화된 TensorFlow 데이터셋 생성
@@ -83,6 +87,7 @@ def create_optimized_dataset(X, y, batch_size=64, shuffle_buffer=1000):
 
     return dataset
 
+
 def get_latest_sequence(df, sequence_length, scaler):
     """
     가장 최근 sequence_length 회차의 데이터를 가져와 예측에 사용할 시퀀스 생성
@@ -100,3 +105,4 @@ def get_latest_sequence(df, sequence_length, scaler):
 
     # RTX 4060 최적화 (float32 사용)
     return np.array([scaled_latest], dtype=np.float32)
+

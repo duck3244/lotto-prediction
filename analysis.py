@@ -258,3 +258,4 @@ def analyze_number_trends(df, window_size=10):
                 falling_numbers.append(num)
 
     return rising_numbers, falling_numbers
+

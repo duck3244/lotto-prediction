@@ -6,13 +6,15 @@
 """
 
 import os
-from pathlib import Path
-import subprocess
 import time
+import subprocess
 import threading
 import numpy as np
 import tensorflow as tf
+
+from pathlib import Path
 from tensorflow.keras.models import load_model as keras_load_model
+
 
 def save_model(model, file_path):
     """
@@ -36,6 +38,7 @@ def save_model(model, file_path):
     except Exception as e:
         print(f"모델 저장 오류: {e}")
         return False
+
 
 def load_model(file_path):
     """
@@ -71,6 +74,7 @@ def setup_gpu_monitoring(interval=5):
         stop_monitoring: 모니터링 중지 함수
     """
     monitoring = {'active': True}  # 딕셔너리로 상태 관리 (스레드 간 공유)
+
 
     def gpu_monitor():
         try:
@@ -111,6 +115,7 @@ def setup_gpu_monitoring(interval=5):
     monitor_thread = threading.Thread(target=gpu_monitor)
     monitor_thread.daemon = True
     monitor_thread.start()
+
 
     # 모니터링 중지 함수
     def stop_monitoring():
@@ -291,3 +296,4 @@ def calculate_win_probability(predictions, actual_results):
     win_probability = win_count / total
 
     return match_stats, win_probability
+

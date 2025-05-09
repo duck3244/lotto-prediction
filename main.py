@@ -11,9 +11,10 @@ import sys
 import time
 import argparse
 import logging
-from pathlib import Path
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
+from pathlib import Path
 
 # 모듈 불러오기
 from data_loader import load_data, preprocess_data, get_latest_sequence
@@ -302,3 +303,4 @@ Good luck! We recommend responsible lottery participation.
         print(f"\n오류가 발생했습니다: {e}")
         logger.exception("Unhandled exception in main program")
         sys.exit(1)
+

@@ -7,6 +7,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 
@@ -14,6 +15,7 @@ from sklearn.preprocessing import MinMaxScaler
 from data_loader import load_data, preprocess_data
 from model import build_model, train_and_evaluate, predict_next_numbers
 from utils import compare_predictions, calculate_win_probability
+
 
 def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=5, test_size=20, epochs=50):
     """과거 데이터로 모델 성능 평가"""
@@ -113,6 +115,7 @@ def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=
     
     return results_df
 
+
 if __name__ == "__main__":
     print("\n" + "="*70)
     print(" " * 25 + "모델 성능 평가")
@@ -149,3 +152,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n오류가 발생했습니다: {e}")
         print("파일 경로와 형식을 확인하고 다시 시도해주세요.")
+

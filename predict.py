@@ -8,8 +8,9 @@
 import os
 import sys
 import argparse
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
 from pathlib import Path
 
 # 로컬 모듈 가져오기
@@ -18,6 +19,7 @@ from model import predict_next_numbers
 from analysis import analyze_patterns, ensemble_prediction
 from utils import load_model, validate_lotto_numbers, suggest_balanced_numbers, optimize_tf_config, setup_gpu_monitoring
 from visualization import visualize_data, visualize_prediction_comparison
+
 
 def predict_with_saved_model(args):
     """
@@ -129,6 +131,7 @@ def predict_with_saved_model(args):
 
     return lstm_prediction, ensemble_result, additional_sets
 
+
 def parse_arguments():
     """명령행 인수 파싱"""
     parser = argparse.ArgumentParser(description="RTX 4060에 최적화된 로또 번호 예측")
@@ -155,6 +158,7 @@ def parse_arguments():
                         help="GPU 사용량 모니터링 활성화")
 
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     print("\n" + "="*70)
@@ -193,3 +197,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n오류가 발생했습니다: {e}")
         sys.exit(1)
+

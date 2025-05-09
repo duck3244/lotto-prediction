@@ -6,14 +6,16 @@ Data Visualization Module (RTX 4060 Optimized)
 - Prediction result visualization
 """
 
-from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+from pathlib import Path
 
 # Set graph style
 plt.style.use('ggplot')
 mpl.rcParams['font.family'] = 'DejaVu Sans'  # Default English font
+
 
 def visualize_data(df, frequencies, output_dir="visualization"):
     """
@@ -57,6 +59,7 @@ def visualize_data(df, frequencies, output_dir="visualization"):
         print(f"- {file_path}")
 
     return created_files
+
 
 def create_frequency_chart(frequencies, output_dir):
     """Create number frequency chart"""
@@ -103,6 +106,7 @@ def create_frequency_chart(frequencies, output_dir):
 
     return file_path
 
+
 def create_recent_heatmap(df, output_dir, recent_count=50):
     """Create recent draws heatmap"""
     file_path = output_dir / 'recent_numbers_heatmap.png'
@@ -140,6 +144,7 @@ def create_recent_heatmap(df, output_dir, recent_count=50):
     plt.close()
 
     return file_path
+
 
 def create_odd_even_chart(df, output_dir):
     """Create odd/even distribution pie chart"""
@@ -181,6 +186,7 @@ def create_odd_even_chart(df, output_dir):
     plt.close()
 
     return file_path
+
 
 def create_range_distribution_chart(df, output_dir):
     """Create number range distribution chart"""
@@ -229,6 +235,7 @@ def create_range_distribution_chart(df, output_dir):
     ax.set_xticklabels(range_labels)
     ax.legend(fontsize=12)
 
+
     # Add value labels
     def add_labels(rects):
         for rect in rects:
@@ -247,6 +254,7 @@ def create_range_distribution_chart(df, output_dir):
     plt.close()
 
     return file_path
+
 
 def visualize_prediction_comparison(lstm_prediction, ensemble_prediction, output_dir):
     """Compare LSTM and ensemble prediction results visualization"""
@@ -304,3 +312,4 @@ def visualize_prediction_comparison(lstm_prediction, ensemble_prediction, output
     plt.close()
 
     return file_path
+

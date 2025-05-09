@@ -6,13 +6,15 @@ LSTM 모델 정의 및 학습 모듈 (RTX 4060 최적화)
 """
 
 import os
-from pathlib import Path
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
+
+from pathlib import Path
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
-import matplotlib.pyplot as plt
+
 
 def build_model(input_shape, use_gpu=True):
     """
@@ -62,6 +64,7 @@ def build_model(input_shape, use_gpu=True):
     model.compile(optimizer=optimizer, loss='mse')
 
     return model
+
 
 def train_and_evaluate(X, y, epochs=300, batch_size=64, validation_split=0.2, use_gpu=True):
     """
@@ -153,6 +156,7 @@ def train_and_evaluate(X, y, epochs=300, batch_size=64, validation_split=0.2, us
 
     return model, history
 
+
 def predict_next_numbers(model, latest_sequence, scaler):
     """
     학습된 모델로 다음 회차 번호 예측
@@ -196,6 +200,7 @@ def predict_next_numbers(model, latest_sequence, scaler):
 
     return final_numbers
 
+
 def export_quantized_model(model, output_path='models/quantized_model'):
     """
     학습된 모델을 양자화하여 TF Lite 형식으로 저장 (크기 감소 및 추론 가속)
@@ -223,3 +228,4 @@ def export_quantized_model(model, output_path='models/quantized_model'):
 
     print(f"양자화된 모델이 {tflite_path}에 저장되었습니다.")
     return tflite_path
+
