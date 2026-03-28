@@ -15,6 +15,7 @@ from sklearn.preprocessing import MinMaxScaler
 from data_loader import load_data, preprocess_data
 from model import build_model, train_and_evaluate, predict_next_numbers
 from utils import compare_predictions, calculate_win_probability
+from constants import LOTTO_COLUMNS
 
 
 def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=5, test_size=20, epochs=50):
@@ -38,7 +39,7 @@ def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=
         test_row = df.iloc[test_idx]
         
         # 실제 당첨 번호
-        actual_numbers = [test_row[f'번호{j}'] for j in range(1, 7)]
+        actual_numbers = [test_row[col] for col in LOTTO_COLUMNS]
         
         # 데이터 전처리
         X, y, scaler = preprocess_data(train_df, sequence_length)
@@ -53,7 +54,7 @@ def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=
         model, _ = train_and_evaluate(X, y, epochs=epochs)
         
         # 해당 회차 예측을 위한 시퀀스 데이터
-        latest_data = train_df.iloc[:sequence_length][['번호1', '번호2', '번호3', '번호4', '번호5', '번호6']].values
+        latest_data = train_df.iloc[:sequence_length][LOTTO_COLUMNS].values
         scaled_latest = scaler.transform(latest_data)
         latest_sequence = np.array([scaled_latest])
         
@@ -100,9 +101,9 @@ def evaluate_model_with_historical_data(file_path='lotto.xlsx', sequence_length=
     # 그래프로 시각화
     plt.figure(figsize=(10, 6))
     ax = match_counts.plot(kind='bar', color='skyblue')
-    plt.title('일치 개수별 분포', fontsize=16)
-    plt.xlabel('일치한 번호 개수', fontsize=12)
-    plt.ylabel('횟수', fontsize=12)
+    plt.title('Match Count Distribution', fontsize=16)
+    plt.xlabel('Number of Matches', fontsize=12)
+    plt.ylabel('Count', fontsize=12)
     plt.grid(axis='y', alpha=0.3)
     
     # 바 위에 값 표시

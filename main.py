@@ -21,7 +21,7 @@ from data_loader import load_data, preprocess_data, get_latest_sequence
 from model import build_model, train_and_evaluate, predict_next_numbers
 from analysis import analyze_patterns, ensemble_prediction
 from visualization import visualize_data
-from utils import save_model, load_model, setup_gpu_monitoring
+from utils import save_model, load_model, save_scaler, load_scaler, setup_gpu_monitoring, setup_gpu, set_global_seeds
 
 # 전역 변수
 LOGS_DIR = Path("logs")
@@ -44,31 +44,6 @@ def setup_logging(log_level=logging.INFO):
         ]
     )
     return logging.getLogger(__name__)
-
-
-def setup_gpu():
-    """RTX 4060에 최적화된 GPU 설정"""
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        try:
-            # 메모리 증가 설정
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-
-            # 혼합 정밀도 계산 활성화 (FP16 사용)
-            policy = tf.keras.mixed_precision.Policy('mixed_float16')
-            tf.keras.mixed_precision.set_global_policy(policy)
-
-            # XLA 컴파일 활성화
-            tf.config.optimizer.set_jit(True)
-
-            gpu_info = tf.config.experimental.get_device_details(gpus[0])
-            gpu_name = gpu_info.get('device_name', 'Unknown')
-
-            return True, f"GPU 설정 완료: {gpu_name}, 혼합 정밀도 및 XLA 컴파일 활성화"
-        except RuntimeError as e:
-            return False, f"GPU 설정 오류: {e}"
-    return False, "GPU를 찾을 수 없습니다. CPU 모드로 실행됩니다."
 
 
 def create_directories():
@@ -146,6 +121,9 @@ def parse_arguments():
     parser.add_argument("--monitor-gpu", action="store_true",
                         help="GPU 사용량 모니터링 활성화")
 
+    parser.add_argument("--seed", type=int, default=42,
+                        help="랜덤 시드 값 (기본값: 42)")
+
     parser.set_defaults(visualize=True)
 
     return parser.parse_args()
@@ -153,6 +131,10 @@ def parse_arguments():
 
 def main(args, logger):
     """Main execution function"""
+    # Set global random seeds for reproducibility
+    set_global_seeds(args.seed)
+    logger.info(f"Random seed set to {args.seed}")
+
     # Record start time
     start_time = time.time()
 
@@ -223,12 +205,18 @@ def main(args, logger):
             visualize_data(df, frequencies, VISUALIZATION_DIR)
             logger.info(f"Visualization complete: results saved in {VISUALIZATION_DIR} directory")
 
-        # 7. Save model
+        # 7. Save model and scaler
         if not args.load_model or (args.load_model and history is not None):
-            model_filename = f"lotto_lstm_model_{time.strftime('%Y%m%d_%H%M%S')}.h5"
+            timestamp = time.strftime('%Y%m%d_%H%M%S')
+            model_filename = f"lotto_lstm_model_{timestamp}.h5"
             model_path = MODELS_DIR / model_filename
             save_model(model, str(model_path))
             logger.info(f"Model saved: {model_path}")
+
+            scaler_filename = f"lotto_scaler_{timestamp}.pkl"
+            scaler_path = MODELS_DIR / scaler_filename
+            save_scaler(scaler, str(scaler_path))
+            logger.info(f"Scaler saved: {scaler_path}")
 
         # 8. Calculate execution time
         total_time = time.time() - start_time
@@ -240,6 +228,10 @@ def main(args, logger):
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
         print(f"\nError: File '{args.file}' not found or cannot be accessed.")
+        return None
+    except ValueError as e:
+        logger.error(f"Data parsing error: {e}")
+        print(f"\nError: Failed to parse data file '{args.file}': {e}")
         return None
     except Exception as e:
         logger.exception(f"Exception in main function: {e}")

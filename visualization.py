@@ -11,6 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from pathlib import Path
+from constants import LOTTO_COLUMNS
 
 # Set graph style
 plt.style.use('ggplot')
@@ -117,13 +118,11 @@ def create_recent_heatmap(df, output_dir, recent_count=50):
     recent_count = min(recent_count, len(df))
     recent_df = df.head(recent_count).copy()
 
-    # Prepare heatmap data
+    # Prepare heatmap data (벡터화)
     heatmap_data = np.zeros((recent_count, 45))
-
-    for i, (_, row) in enumerate(recent_df.iterrows()):
-        numbers = [row[f'번호{j}'] for j in range(1, 7)]
-        for num in numbers:
-            heatmap_data[i, num-1] = 1
+    numbers_matrix = recent_df[LOTTO_COLUMNS].values
+    for i, numbers in enumerate(numbers_matrix):
+        heatmap_data[i, numbers.astype(int) - 1] = 1
 
     # Color map options: 'hot', 'inferno', 'plasma', 'viridis'
     plt.imshow(heatmap_data, cmap='hot', aspect='auto')
@@ -152,19 +151,16 @@ def create_odd_even_chart(df, output_dir):
 
     plt.figure(figsize=(10, 8))
 
-    odd_even_counts = {'Odd Dominant': 0, 'Even Dominant': 0, 'Balanced': 0}
+    # 벡터화 연산으로 홀짝 분류
+    numbers_matrix = df[LOTTO_COLUMNS].values
+    odd_counts = np.sum(numbers_matrix % 2 == 1, axis=1)
+    even_counts = 6 - odd_counts
 
-    for _, row in df.iterrows():
-        numbers = [row[f'번호{j}'] for j in range(1, 7)]
-        odd_count = sum(1 for num in numbers if num % 2 == 1)
-        even_count = 6 - odd_count
-
-        if odd_count > even_count:
-            odd_even_counts['Odd Dominant'] += 1
-        elif even_count > odd_count:
-            odd_even_counts['Even Dominant'] += 1
-        else:
-            odd_even_counts['Balanced'] += 1
+    odd_even_counts = {
+        'Odd Dominant': int(np.sum(odd_counts > even_counts)),
+        'Even Dominant': int(np.sum(even_counts > odd_counts)),
+        'Balanced': int(np.sum(odd_counts == even_counts))
+    }
 
     labels = odd_even_counts.keys()
     sizes = odd_even_counts.values()
@@ -198,16 +194,10 @@ def create_range_distribution_chart(df, output_dir):
     ranges = [(1, 10), (11, 20), (21, 30), (31, 40), (41, 45)]
     range_labels = ['1-10', '11-20', '21-30', '31-40', '41-45']
 
-    # Calculate frequency for each range
-    range_counts = [0, 0, 0, 0, 0]
-
-    for _, row in df.iterrows():
-        numbers = [row[f'번호{j}'] for j in range(1, 7)]
-        for num in numbers:
-            for i, (start, end) in enumerate(ranges):
-                if start <= num <= end:
-                    range_counts[i] += 1
-                    break
+    # Calculate frequency for each range (벡터화)
+    numbers_flat = df[LOTTO_COLUMNS].values.flatten()
+    bins = [0, 10, 20, 30, 40, 45]
+    range_counts = list(np.histogram(numbers_flat, bins=bins)[0])
 
     # Calculate total number count (draws * 6)
     total_numbers = len(df) * 6

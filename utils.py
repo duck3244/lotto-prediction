@@ -7,6 +7,7 @@
 
 import os
 import time
+import pickle
 import subprocess
 import threading
 import numpy as np
@@ -14,6 +15,22 @@ import tensorflow as tf
 
 from pathlib import Path
 from tensorflow.keras.models import load_model as keras_load_model
+from constants import NUM_BALLS, MIN_NUMBER, MAX_NUMBER
+
+
+def set_global_seeds(seed=42):
+    """
+    전역 랜덤 시드 설정으로 재현성 보장
+
+    Args:
+        seed: 랜덤 시드 값
+    """
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 def save_model(model, file_path):
@@ -40,6 +57,52 @@ def save_model(model, file_path):
         return False
 
 
+def save_scaler(scaler, file_path):
+    """
+    학습에 사용된 스케일러를 파일로 저장
+
+    Args:
+        scaler: 저장할 MinMaxScaler 객체
+        file_path: 저장 경로 (.pkl)
+
+    Returns:
+        성공 여부
+    """
+    try:
+        save_dir = os.path.dirname(file_path)
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
+
+        with open(file_path, 'wb') as f:
+            pickle.dump(scaler, f)
+        return True
+    except Exception as e:
+        print(f"스케일러 저장 오류: {e}")
+        return False
+
+
+def load_scaler(file_path):
+    """
+    저장된 스케일러 불러오기
+
+    Args:
+        file_path: 스케일러 파일 경로 (.pkl)
+
+    Returns:
+        불러온 스케일러 또는 None
+    """
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                return pickle.load(f)
+        else:
+            print(f"스케일러 파일 '{file_path}'을 찾을 수 없습니다.")
+            return None
+    except Exception as e:
+        print(f"스케일러 로드 오류: {e}")
+        return None
+
+
 def load_model(file_path):
     """
     저장된 모델 불러오기
@@ -51,12 +114,15 @@ def load_model(file_path):
         불러온 모델 또는 None
     """
     try:
-        if os.path.exists(file_path):
-            model = keras_load_model(file_path)
-            return model
-        else:
+        if not os.path.exists(file_path):
             print(f"모델 파일 '{file_path}'을 찾을 수 없습니다.")
             return None
+
+        if file_path.endswith('.h5'):
+            print("레거시 .h5 형식 모델을 로드합니다. .keras 형식으로의 재저장을 권장합니다.")
+
+        model = keras_load_model(file_path)
+        return model
     except Exception as e:
         print(f"모델 로드 오류: {e}")
         return None
@@ -158,14 +224,14 @@ def validate_lotto_numbers(numbers):
         is_valid: 유효성 여부
         message: 결과 메시지
     """
-    # 6개의 번호인지 확인
-    if len(numbers) != 6:
-        return False, "로또 번호는 정확히 6개여야 합니다."
+    # 번호 개수 확인
+    if len(numbers) != NUM_BALLS:
+        return False, f"로또 번호는 정확히 {NUM_BALLS}개여야 합니다."
 
-    # 번호가 1-45 사이인지 확인
+    # 번호 범위 확인
     for num in numbers:
-        if not (1 <= num <= 45):
-            return False, f"번호 {num}은(는) 유효하지 않습니다. 모든 번호는 1-45 사이여야 합니다."
+        if not (MIN_NUMBER <= num <= MAX_NUMBER):
+            return False, f"번호 {num}은(는) 유효하지 않습니다. 모든 번호는 {MIN_NUMBER}-{MAX_NUMBER} 사이여야 합니다."
 
     # 중복 번호 확인
     if len(set(numbers)) != len(numbers):
@@ -199,7 +265,7 @@ def suggest_balanced_numbers(frequencies, recent_numbers, num_to_generate=5):
         recent = list(recent_numbers)[:15]
 
         # 4. 랜덤 번호 (20%)
-        random_nums = np.random.choice([n for n in range(1, 46) if n not in high_freq[:6]], 10, replace=False)
+        random_nums = np.random.choice([n for n in range(MIN_NUMBER, MAX_NUMBER + 1) if n not in high_freq[:6]], 10, replace=False)
 
         # 비율에 맞게 선택
         np.random.shuffle(high_freq)
@@ -224,7 +290,7 @@ def suggest_balanced_numbers(frequencies, recent_numbers, num_to_generate=5):
         # 정확히 6개 번호 맞추기
         while len(balanced_set) < 6:
             missing = 6 - len(balanced_set)
-            available = [n for n in range(1, 46) if n not in balanced_set]
+            available = [n for n in range(MIN_NUMBER, MAX_NUMBER + 1) if n not in balanced_set]
             balanced_set.extend(np.random.choice(available, missing, replace=False))
             balanced_set = sorted(list(set(balanced_set)))
 
@@ -237,8 +303,8 @@ def suggest_balanced_numbers(frequencies, recent_numbers, num_to_generate=5):
     return balanced_sets
 
 
-def optimize_tf_config():
-    """TensorFlow 설정 최적화 (RTX 4060 GPU 대상)"""
+def setup_gpu():
+    """RTX 4060에 최적화된 GPU 설정 (메모리 증가, 혼합 정밀도, XLA 컴파일)"""
     try:
         # GPU 메모리 증가 설정
         gpus = tf.config.experimental.list_physical_devices('GPU')

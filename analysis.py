@@ -8,6 +8,8 @@
 
 import numpy as np
 
+from constants import LOTTO_COLUMNS, NUM_BALLS, MIN_NUMBER, MAX_NUMBER
+
 
 def analyze_patterns(df):
     """
@@ -25,8 +27,8 @@ def analyze_patterns(df):
 
     # Calculate number frequencies
     frequencies = {}
-    for i in range(1, 46):
-        col_counts = [(df[f'번호{j}'] == i).sum() for j in range(1, 7)]
+    for i in range(MIN_NUMBER, MAX_NUMBER + 1):
+        col_counts = [(df[col] == i).sum() for col in LOTTO_COLUMNS]
         frequencies[i] = sum(col_counts)
 
     # Top/bottom 10 frequency numbers
@@ -41,28 +43,23 @@ def analyze_patterns(df):
     for num, freq in bottom_numbers:
         print(f"  Number {num}: {freq} times")
 
-    # Count draws with consecutive numbers
-    consecutive_count = 0
-    for _, row in df.iterrows():
-        numbers = sorted([row[f'번호{j}'] for j in range(1, 7)])
-        for i in range(len(numbers) - 1):
-            if numbers[i + 1] - numbers[i] == 1:
-                consecutive_count += 1
-                break
+    # 벡터화 연산을 위한 번호 행렬
+    numbers_matrix = df[LOTTO_COLUMNS].values
+
+    # Count draws with consecutive numbers (벡터화)
+    sorted_matrix = np.sort(numbers_matrix, axis=1)
+    diffs = np.diff(sorted_matrix, axis=1)
+    consecutive_count = int(np.any(diffs == 1, axis=1).sum())
 
     print(f"\n- Draws with consecutive numbers: {consecutive_count} ({consecutive_count / len(df) * 100:.1f}%)")
 
-    # Odd/Even distribution
-    odd_even_distribution = []
-    for _, row in df.iterrows():
-        numbers = [row[f'번호{j}'] for j in range(1, 7)]
-        odd_count = sum(1 for num in numbers if num % 2 == 1)
-        even_count = 6 - odd_count
-        odd_even_distribution.append((odd_count, even_count))
+    # Odd/Even distribution (벡터화)
+    odd_counts = np.sum(numbers_matrix % 2 == 1, axis=1)
+    even_counts = NUM_BALLS - odd_counts
 
     # Odd/Even combination frequency
     odd_even_freq = {}
-    for odd, even in odd_even_distribution:
+    for odd, even in zip(odd_counts, even_counts):
         key = f"Odd{odd}:Even{even}"
         odd_even_freq[key] = odd_even_freq.get(key, 0) + 1
 
@@ -70,25 +67,13 @@ def analyze_patterns(df):
     for combo, freq in sorted(odd_even_freq.items(), key=lambda x: x[1], reverse=True):
         print(f"  {combo}: {freq} times ({freq / len(df) * 100:.1f}%)")
 
-    # Number range distribution (1-10, 11-20, 21-30, 31-40, 41-45)
+    # Number range distribution (벡터화: np.digitize 사용)
+    bins = [0, 10, 20, 30, 40, MAX_NUMBER]
+    digitized = np.digitize(numbers_matrix, bins, right=True)  # 1~5 범위 인덱스
     range_distribution = []
-    for _, row in df.iterrows():
-        numbers = [row[f'번호{j}'] for j in range(1, 7)]
-        ranges = [0, 0, 0, 0, 0]  # Counts for 5 ranges
-
-        for num in numbers:
-            if 1 <= num <= 10:
-                ranges[0] += 1
-            elif 11 <= num <= 20:
-                ranges[1] += 1
-            elif 21 <= num <= 30:
-                ranges[2] += 1
-            elif 31 <= num <= 40:
-                ranges[3] += 1
-            else:  # 41-45
-                ranges[4] += 1
-
-        range_distribution.append(tuple(ranges))
+    for row_bins in digitized:
+        counts = tuple(np.bincount(row_bins, minlength=6)[1:])  # 인덱스 1~5
+        range_distribution.append(counts)
 
     # Most frequent number range patterns
     range_patterns = {}
@@ -128,14 +113,31 @@ def ensemble_prediction(df, lstm_prediction, top_frequencies, sequence_length=5)
 
     # 2. Frequency-based prediction (most frequent numbers)
     frequency_based = [num for num, _ in sorted(top_frequencies.items(), key=lambda x: x[1], reverse=True)[:15]]
-    np.random.seed(42)  # Set seed for reproducibility
     np.random.shuffle(frequency_based)
     frequency_prediction = sorted(frequency_based[:6])
     predictions.append(frequency_prediction)
     weights.append(0.2)  # 20% weight
     print("2. Frequency-Based Prediction:", frequency_prediction)
 
-    # ... (rest of the code remains unchanged except for print messages)
+    # 3. Recent pattern-based prediction (rising numbers)
+    rising_numbers, _ = analyze_number_trends(df, window_size=sequence_length)
+    if len(rising_numbers) >= 6:
+        recent_prediction = sorted(rising_numbers[:6])
+    else:
+        # 상승 추세 번호가 부족하면 빈도 높은 번호로 보충
+        supplement = [num for num, _ in sorted(top_frequencies.items(), key=lambda x: x[1], reverse=True)
+                      if num not in rising_numbers]
+        needed = 6 - len(rising_numbers)
+        recent_prediction = sorted(rising_numbers + supplement[:needed])
+    predictions.append(recent_prediction)
+    weights.append(0.2)  # 20% weight
+    print("3. Recent Pattern Prediction:", recent_prediction)
+
+    # 4. Statistical balance prediction (odd/even and range balance)
+    balanced_prediction = generate_balanced_prediction()
+    predictions.append(balanced_prediction)
+    weights.append(0.2)  # 20% weight
+    print("4. Statistical Balance Prediction:", balanced_prediction)
 
     # 5. Final ensemble prediction: weighted voting
     number_votes = {}
@@ -163,8 +165,8 @@ def generate_balanced_prediction():
         balanced_numbers: 균형 잡힌 6개 번호
     """
     # 홀수 3개, 짝수 3개 선택
-    odd_numbers = [n for n in range(1, 46) if n % 2 == 1]
-    even_numbers = [n for n in range(1, 46) if n % 2 == 0]
+    odd_numbers = [n for n in range(MIN_NUMBER, MAX_NUMBER + 1) if n % 2 == 1]
+    even_numbers = [n for n in range(MIN_NUMBER, MAX_NUMBER + 1) if n % 2 == 0]
 
     np.random.shuffle(odd_numbers)
     np.random.shuffle(even_numbers)
@@ -224,15 +226,15 @@ def analyze_number_trends(df, window_size=10):
     """
     # 전체 데이터에서의 번호별 출현 빈도
     total_freq = {}
-    for i in range(1, 46):
-        col_counts = [(df[f'번호{j}'] == i).sum() for j in range(1, 7)]
+    for i in range(MIN_NUMBER, MAX_NUMBER + 1):
+        col_counts = [(df[col] == i).sum() for col in LOTTO_COLUMNS]
         total_freq[i] = sum(col_counts)
 
     # 최근 window_size 회차에서의 번호별 출현 빈도
     recent_freq = {}
     recent_df = df.head(window_size)
-    for i in range(1, 46):
-        col_counts = [(recent_df[f'번호{j}'] == i).sum() for j in range(1, 7)]
+    for i in range(MIN_NUMBER, MAX_NUMBER + 1):
+        col_counts = [(recent_df[col] == i).sum() for col in LOTTO_COLUMNS]
         recent_freq[i] = sum(col_counts)
 
     # 전체 대비 최근 출현 비율 계산
@@ -242,7 +244,7 @@ def analyze_number_trends(df, window_size=10):
     total_draws = len(df)
     recent_draws = len(recent_df)
 
-    for num in range(1, 46):
+    for num in range(MIN_NUMBER, MAX_NUMBER + 1):
         # 전체 및 최근 출현 확률
         total_prob = total_freq.get(num, 0) / total_draws
         recent_prob = recent_freq.get(num, 0) / recent_draws if recent_draws > 0 else 0

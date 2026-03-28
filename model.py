@@ -14,6 +14,8 @@ from pathlib import Path
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
+from data_loader import create_optimized_dataset
+from constants import NUM_BALLS, MIN_NUMBER, MAX_NUMBER
 
 
 def build_model(input_shape, use_gpu=True):
@@ -46,8 +48,8 @@ def build_model(input_shape, use_gpu=True):
     model.add(BatchNormalization(name="batch_norm_3"))
     model.add(Dropout(0.2, name="dropout_3"))
 
-    # 출력층 (6개 로또 번호)
-    model.add(Dense(6, name="output"))
+    # 출력층 (로또 번호 개수)
+    model.add(Dense(NUM_BALLS, name="output"))
 
     # GPU 최적화 컴파일 설정
     if use_gpu:
@@ -88,10 +90,18 @@ def train_and_evaluate(X, y, epochs=300, batch_size=64, validation_split=0.2, us
     models_dir.mkdir(exist_ok=True)
     logs_dir.mkdir(exist_ok=True, parents=True)
 
-    # 데이터 분할
+    # 데이터 분할 (시계열: 앞쪽=과거=학습, 뒤쪽=최신=검증)
     val_size = int(len(X) * validation_split)
-    X_train, X_val = X[val_size:], X[:val_size]
-    y_train, y_val = y[val_size:], y[:val_size]
+    X_train, X_val = X[:-val_size], X[-val_size:]
+    y_train, y_val = y[:-val_size], y[-val_size:]
+
+    # TF Dataset 파이프라인 구축 (학습 데이터만 shuffle, 검증 데이터는 순서 유지)
+    train_dataset = create_optimized_dataset(X_train, y_train, batch_size=batch_size,
+                                              shuffle_buffer=len(X_train))
+    val_dataset = (tf.data.Dataset.from_tensor_slices((X_val, y_val))
+                   .batch(batch_size)
+                   .cache()
+                   .prefetch(tf.data.AUTOTUNE))
 
     # 모델 구축
     model = build_model((X.shape[1], X.shape[2]), use_gpu)
@@ -129,12 +139,11 @@ def train_and_evaluate(X, y, epochs=300, batch_size=64, validation_split=0.2, us
         )
     ]
 
-    # 모델 학습
+    # 모델 학습 (TF Dataset 파이프라인 사용)
     history = model.fit(
-        X_train, y_train,
+        train_dataset,
         epochs=epochs,
-        batch_size=batch_size,
-        validation_data=(X_val, y_val),
+        validation_data=val_dataset,
         callbacks=callbacks,
         verbose=1
     )
@@ -178,25 +187,22 @@ def predict_next_numbers(model, latest_sequence, scaler):
     # 1~45 사이의 정수로 변환하고 중복 제거
     unique_numbers = set()
     for numbers in predicted_numbers:
-        sorted_numbers = []
         for num in numbers:
             # 1~45 범위로 제한하고 반올림
-            rounded_num = max(1, min(45, round(num)))
-            sorted_numbers.append(rounded_num)
+            rounded_num = max(MIN_NUMBER, min(MAX_NUMBER, round(num)))
+            unique_numbers.add(rounded_num)
 
-        # 중복 제거된 번호 세트 만들기
-        for num in sorted_numbers:
-            unique_numbers.add(num)
+    # 정렬 후 상위 6개 선택 (결정적 동작 보장)
+    all_unique_sorted = sorted(unique_numbers)
 
-        # 6개 번호 선택
-        if len(unique_numbers) >= 6:
-            final_numbers = sorted(list(unique_numbers)[:6])
-        else:
-            # 번호가 부족하면 1~45에서 랜덤하게 추가
-            available_numbers = [n for n in range(1, 46) if n not in unique_numbers]
-            needed = 6 - len(unique_numbers)
-            additional = np.random.choice(available_numbers, needed, replace=False)
-            final_numbers = sorted(list(unique_numbers) + list(additional))
+    if len(all_unique_sorted) >= NUM_BALLS:
+        final_numbers = sorted(all_unique_sorted[:NUM_BALLS])
+    else:
+        # 번호가 부족하면 유효 범위에서 랜덤하게 추가
+        available_numbers = [n for n in range(MIN_NUMBER, MAX_NUMBER + 1) if n not in unique_numbers]
+        needed = NUM_BALLS - len(unique_numbers)
+        additional = np.random.choice(available_numbers, needed, replace=False)
+        final_numbers = sorted(list(unique_numbers) + list(additional))
 
     return final_numbers
 

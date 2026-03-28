@@ -10,6 +10,7 @@ import pandas as pd
 import tensorflow as tf
 
 from sklearn.preprocessing import MinMaxScaler
+from constants import LOTTO_COLUMNS, MAX_NUMBER
 
 
 def load_data(file_path):
@@ -19,8 +20,10 @@ def load_data(file_path):
         # 회차 기준으로 내림차순 정렬 (최근 데이터가 먼저 오도록)
         df = df.sort_values('회차', ascending=False).reset_index(drop=True)
         return df
+    except FileNotFoundError:
+        raise
     except Exception as e:
-        raise FileNotFoundError(f"데이터 파일을 불러올 수 없습니다: {e}")
+        raise ValueError(f"데이터 파일을 파싱할 수 없습니다: {e}") from e
 
 
 def preprocess_data(df, sequence_length=5, use_tf_dataset=True):
@@ -38,7 +41,11 @@ def preprocess_data(df, sequence_length=5, use_tf_dataset=True):
         scaler: 데이터 스케일러
     """
     # 로또 번호 컬럼만 선택
-    lotto_numbers = df[['번호1', '번호2', '번호3', '번호4', '번호5', '번호6']].values
+    lotto_numbers = df[LOTTO_COLUMNS].values
+
+    # 시계열 학습을 위해 오름차순(과거→최신)으로 정렬
+    # (df는 내림차순 정렬 상태이므로 뒤집어야 함)
+    lotto_numbers = lotto_numbers[::-1]
 
     # 데이터 정규화 (0-1 사이 값으로)
     scaler = MinMaxScaler(feature_range=(0, 1))
@@ -55,10 +62,6 @@ def preprocess_data(df, sequence_length=5, use_tf_dataset=True):
     # FP16 혼합 정밀도 계산을 위한 float32 데이터 타입 사용
     X_array = np.array(X, dtype=np.float32)
     y_array = np.array(y, dtype=np.float32)
-
-    # TF 데이터셋으로 변환 (선택적)
-    if use_tf_dataset:
-        create_optimized_dataset(X_array, y_array)
 
     return X_array, y_array, scaler
 
@@ -100,7 +103,9 @@ def get_latest_sequence(df, sequence_length, scaler):
     Returns:
         시퀀스 데이터 (예측용)
     """
-    latest_data = df.iloc[:sequence_length][['번호1', '번호2', '번호3', '번호4', '번호5', '번호6']].values
+    latest_data = df.iloc[:sequence_length][LOTTO_COLUMNS].values
+    # 학습 시퀀스와 동일하게 오름차순(과거→최신)으로 정렬
+    latest_data = latest_data[::-1]
     scaled_latest = scaler.transform(latest_data)
 
     # RTX 4060 최적화 (float32 사용)

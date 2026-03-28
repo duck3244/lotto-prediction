@@ -17,8 +17,9 @@ from pathlib import Path
 from data_loader import load_data, get_latest_sequence
 from model import predict_next_numbers
 from analysis import analyze_patterns, ensemble_prediction
-from utils import load_model, validate_lotto_numbers, suggest_balanced_numbers, optimize_tf_config, setup_gpu_monitoring
+from utils import load_model, load_scaler, validate_lotto_numbers, suggest_balanced_numbers, setup_gpu, setup_gpu_monitoring, set_global_seeds
 from visualization import visualize_data, visualize_prediction_comparison
+from constants import LOTTO_COLUMNS
 
 
 def predict_with_saved_model(args):
@@ -35,9 +36,12 @@ def predict_with_saved_model(args):
     """
     print(f"\n{'-'*30} 로또 번호 예측 시작 {'-'*30}")
 
+    # 0. Set global random seeds
+    set_global_seeds(args.seed)
+
     # 1. GPU 설정 최적화
     if args.gpu:
-        success, message = optimize_tf_config()
+        success, message = setup_gpu()
         print(message)
 
         if args.monitor_gpu:
@@ -60,15 +64,19 @@ def predict_with_saved_model(args):
         print(f"데이터 로드 오류: {e}")
         return None, None, None
 
-    # 4. 시퀀스 데이터 준비
-    from sklearn.preprocessing import MinMaxScaler
+    # 4. 시퀀스 데이터 준비 (저장된 스케일러 사용 또는 fallback)
+    scaler = None
+    if args.scaler:
+        scaler = load_scaler(args.scaler)
+        if scaler:
+            print(f"스케일러 로드 성공: {args.scaler}")
 
-    # 로또 번호 컬럼만 선택
-    lotto_numbers = df[['번호1', '번호2', '번호3', '번호4', '번호5', '번호6']].values
-
-    # 스케일러 생성 및 학습
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(lotto_numbers)
+    if scaler is None:
+        from sklearn.preprocessing import MinMaxScaler
+        print("경고: 저장된 스케일러를 사용할 수 없습니다. 현재 데이터로 스케일러를 재생성합니다.")
+        lotto_numbers = df[LOTTO_COLUMNS].values
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaler.fit(lotto_numbers)
 
     # 최근 시퀀스 데이터 가져오기
     latest_sequence = get_latest_sequence(df, args.sequence, scaler)
@@ -97,8 +105,8 @@ def predict_with_saved_model(args):
     # 최근 번호 추출
     recent_numbers = set()
     for i in range(min(5, len(df))):
-        for j in range(1, 7):
-            recent_numbers.add(df.iloc[i][f'번호{j}'])
+        for col in LOTTO_COLUMNS:
+            recent_numbers.add(df.iloc[i][col])
 
     additional_sets = suggest_balanced_numbers(frequencies, recent_numbers, args.num_sets)
 
@@ -139,6 +147,9 @@ def parse_arguments():
     parser.add_argument("--model", type=str, required=True,
                         help="학습된 모델 파일 경로 (필수)")
 
+    parser.add_argument("--scaler", type=str, default=None,
+                        help="학습에 사용된 스케일러 파일 경로 (.pkl)")
+
     parser.add_argument("--file", type=str, default="lotto.xlsx",
                         help="로또 데이터 엑셀 파일 경로 (기본값: lotto.xlsx)")
 
@@ -156,6 +167,9 @@ def parse_arguments():
 
     parser.add_argument("--monitor-gpu", action="store_true",
                         help="GPU 사용량 모니터링 활성화")
+
+    parser.add_argument("--seed", type=int, default=42,
+                        help="랜덤 시드 값 (기본값: 42)")
 
     return parser.parse_args()
 
