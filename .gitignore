@@ -3,6 +3,26 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Project artifacts (backend runtime outputs)
+backend/logs/
+backend/models/
+backend/visualization/
+backend/model_evaluation.png
+*.keras
+
+# Frontend (Vue + Vite) — added for upcoming MVP
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.*.local
+
+# FastAPI runtime
+backend/.venv/
+backend/instance/
+backend/app.db
+backend/.pytest_cache/
+
 # C extensions
 *.so
 
